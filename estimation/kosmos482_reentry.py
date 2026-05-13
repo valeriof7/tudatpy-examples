@@ -104,7 +104,7 @@ spice.load_standard_kernels()
 # object mass
 mass = 4200# kg from https://planet4589.org/space/gcat/data/cat/satcat.html
 # DRAG AND SRP AREA, DRAG COEFFICIENT
-reference_area_drag =9.62# Average projection area of the spacecraft in m^2 from Cylyndrical assumption from  https://planet4589.org/space/gcat/data/cat/satcat.htm
+reference_area_drag =9.62# Average projection area of the spacecraft in m^2 from Cylyndrical assumption from  https://planet4589.org/space/gcat/data/cat/satcat.html
 reference_area_radiation = 9.62
 drag_coefficient = 2.0 # drag coefficient that closely matches apulian sightings
 # CUT-OFF ALTITUDE FOR SIMULATION
