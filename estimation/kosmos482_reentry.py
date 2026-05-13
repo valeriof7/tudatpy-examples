@@ -88,7 +88,7 @@ spice.load_standard_kernels()
 # > NOTE:
 # > when initializing SpaceTrackQuery to retrieve TLE, an interactive output will ask you to enter your login credentials to SpaceTrack.org. If you are not registered to the website, you can just use the commented lines below as tle lines. Although all TLEs get updated every few hours, Kosmos 482 has decayed, hence its TLEs will remain the same.
 
-# ## **Define Object Properties and Simulation Epochs**
+# ## Define Object Properties and Simulation Epochs
 #
 # We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.
 # We also specify a **drag coefficient** and a **cut-off altitude** for the simulation, assumed to be **50 km**.
@@ -132,7 +132,7 @@ simulation_end_epoch_tdb = time_scale_converter.convert_time(
     input_value = float_observations_end_utc)
 # -
 
-# ## **Output Options**
+# ## Output Options
 #
 # To give users more control over the level of output detail, we define several **output modes**:
 #
@@ -160,7 +160,7 @@ area_string = str(reference_area_drag)
 altitude_limit_string = str(altitude_limit)
 # -
 
-# ## **Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)**
+# ## Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)
 #
 # We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.
 # All bodies are set to rotate and translate using `get_default_body_settings`, which relies on the previously loaded **SPICE standard kernels**.
@@ -215,7 +215,7 @@ body_settings.get("kosmos_482").radiation_pressure_target_settings = vehicle_tar
 bodies = environment_setup.create_system_of_bodies(body_settings)
 bodies.get("kosmos_482").mass = mass  #mass in kg, already set earlier!
 
-# ## **Accelerations Acting on Kosmos 482**
+# ## Accelerations Acting on Kosmos 482
 #
 # In our simulation, **Kosmos 482** is treated as a re-entering object subjected to a number of relevant accelerations:
 #
@@ -267,7 +267,7 @@ kosmos_482_tle = environment_setup.ephemeris.sgp4(
 kosmos_482_ephemeris = environment_setup.create_body_ephemeris(kosmos_482_tle, "Kosmos 482")
 initial_state = kosmos_482_ephemeris.cartesian_state(simulation_start_epoch_tdb)
 
-# ## **Define Dependent Variables to Save**
+# ## Define Dependent Variables to Save
 #
 # As is customary in Tudat, we specify the **dependent variables** we wish to save during propagation.
 # For re-entry analysis, it is useful to monitor quantities such as:
@@ -290,7 +290,7 @@ dependent_variables_to_save = [
     propagation_setup.dependent_variable.body_fixed_groundspeed_velocity("kosmos_482", "Earth")
 ]
 
-# ## **Ending the Propagation (at Cut-off Altitude)**
+# ## Ending the Propagation (at Cut-off Altitude)
 #
 # Tudat allows the definition of **termination conditions** to stop a simulation once a specified criterion is met.
 # In this example, we terminate the propagation as soon as **Kosmos 482’s altitude drops below the prescribed cut-off altitude**.
@@ -309,7 +309,7 @@ termination_time_settings = propagation_setup.propagator.time_termination(simula
 combined_termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_altitude_settings, termination_time_settings], fulfill_single_condition=True )
 
-# ## **Define Integrator and Propagation Settings**
+# ## Define Integrator and Propagation Settings
 #
 # At this point, you’re likely familiar with these setup lines from many Tudat examples — here we specify the **integrator settings** (e.g., type and step size) and combine everything into the **propagator settings** object that will run our simulation.
 #
@@ -342,7 +342,7 @@ if interval_set == 'yes':
     propagator_settings.processing_settings.results_save_frequency_in_steps = 0
 # -
 
-# ## **Create Dynamics Simulator and Run the Propagation**
+# ## Create Dynamics Simulator and Run the Propagation
 #
 # We now create the **dynamics simulator object** and perform the propagation.
 # After propagation, we extract the results from the simulator’s `state_history` and `dependent_variable_history` attributes.
@@ -360,7 +360,7 @@ dependent_variables = dynamics_simulator.propagation_results.dependent_variable_
 # Convert the dependent variables from a dictionary to a numpy array
 dependent_variables_array = result2array(dependent_variables)
 
-# ## **Write Results to Screen and to Text Files**
+# ## Write Results to Screen and to Text Files
 #
 # We are now ready to **write out and save the results** of our propagation.
 #
@@ -499,7 +499,7 @@ print("output data have been written to files in home directory")
 print(" ")
 # -
 
-# ## **Plot Kosmos 482 Ground Track**
+# ## Plot Kosmos 482 Ground Track
 #
 # Using the **dependent variables** saved during propagation, we can plot the ground track of Kosmos 482.
 #
@@ -553,7 +553,7 @@ plt.legend()
 plt.show()
 # -
 
-# ## **Plot Kosmos 482 Altitude evolution**
+# ## Plot Kosmos 482 Altitude evolution
 #
 # Using the **dependent variables** saved during propagation, we can plot the capsule's altitude over time.
 
