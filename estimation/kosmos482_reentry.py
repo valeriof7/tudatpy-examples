@@ -383,68 +383,87 @@ print('mass: ' + mass_string + ' kg')
 print('drag area: ' + area_string +' m^2')
 print('altitude limit: ' + altitude_limit_string  +' meter')
 print(' ')
+
 # parse reentry date and position in human-readable format
 # time and position
-eindtijd = lastline[0]
-altid = (lastline[1])/1000.0
-lat = math.degrees(lastline[2])
-lon = math.degrees(lastline[3])
-latstring =  "{:.2f}".format(lat)
-lonstring = "{:.2f}".format(lon)
-altstring = "{:.3f}".format(altid)
-# integration window duration to reentry
-duur = eindtijd - simulation_start_epoch_tdb
-uren = (duur/3600.0)
-urenstring = "{:.3f}".format(uren)
-dagen = uren/24.0
-dagenstring = "{:.3f}".format(dagen)
-# reentry time
-date_1 = datetime.datetime(2000,1,1,12,0,0)
-eindtijd = eindtijd - 64.184  # tdb to UTC
-eindtijd_uren = (eindtijd/3600.0)
-eindtijd_dagen = eindtijd_uren/24.0
-end_date = date_1 + datetime.timedelta(days=eindtijd_dagen)
-reentrydatestring = str(end_date)
-propstart = date_1 + datetime.timedelta(days=((float_observations_start_utc/3600.0)/24.0))
-propstartstring = str(propstart)
-propstartstring = propstartstring + " UTC"
-propendstring = str(end_date)
-propendstring = propendstring + " UTC"
-# get uncertainty estimate (25% of integration window duration)
-sigm = 0.25 * uren    # sigma defined as 25% of time between TLE epoch and reentry
-if sigm < 26.0:
-    formatted_number = "%.2f" % sigm
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' hr'
-if sigm < 1.0:
-    sigm_mins = 0.25 *(duur/60.0)
-    formatted_number = "%.2f" % sigm_mins
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' min'
-if sigm >= 26.0:
-    sigm_days = 0.25 * dagen
-    formatted_number = "%.2f" % sigm_days
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' days'
-# print data to screen
+end_time = lastline[0]
+altitude = (lastline[1]) / 1000.0
+latitude = math.degrees(lastline[2])
+longitude = math.degrees(lastline[3])
+
+latitude_string = "{:.2f}".format(latitude)
+longitude_string = "{:.2f}".format(longitude)
+altitude_string = "{:.3f}".format(altitude)
+
+# Integration window duration until reentry
+duration = end_time - simulation_start_epoch_tdb
+
+hours = duration / 3600.0
+hours_string = "{:.3f}".format(hours)
+
+days = hours / 24.0
+days_string = "{:.3f}".format(days)
+
+# Reentry time
+reference_date = datetime.datetime(2000, 1, 1, 12, 0, 0)
+
+end_time = end_time - 64.184  # TDB to UTC
+
+end_time_hours = end_time / 3600.0
+end_time_days = end_time_hours / 24.0
+
+end_date = reference_date + datetime.timedelta(days=end_time_days)
+
+reentry_date_string = str(end_date)
+
+propagation_start = reference_date + datetime.timedelta(
+    days=((float_observations_start_utc / 3600.0) / 24.0)
+)
+
+propagation_start_string = str(propagation_start) + " UTC"
+propagation_end_string = str(end_date) + " UTC"
+
+# Get uncertainty estimate (25% of integration window duration)
+sigma = 0.25 * hours  # sigma defined as 25% of time between TLE epoch and reentry
+
+if sigma < 26.0:
+    formatted_number = "%.2f" % sigma
+    sigma_string = str(formatted_number) + ' hr'
+
+if sigma < 1.0:
+    sigma_minutes = 0.25 * (duration / 60.0)
+    formatted_number = "%.2f" % sigma_minutes
+    sigma_string = str(formatted_number) + ' min'
+
+if sigma >= 26.0:
+    sigma_days = 0.25 * days
+    formatted_number = "%.2f" % sigma_days
+    sigma_string = str(formatted_number) + ' days'
+
+# Print data to screen
 print(' ')
-print('propagation start:  ' + propstartstring)
-print('propagation end:    ' + propendstring)
+print('propagation start:  ' + propagation_start_string)
+print('propagation end:    ' + propagation_end_string)
+
 print(" ")
-print(altid)
-if (altid * 1e3) > altitude_limit:
+print(altitude)
+
+if (altitude * 1e3) > altitude_limit:
     print("OBJECT DID NOT REENTER WITHIN DEFINED TIMESPAN...")
 else:
-    print('final altitude ' + altstring + ' km')
+    print('final altitude ' + altitude_string + ' km')
+
     print(" ")
-    print('reentry after ' + urenstring + ' hours  = ' + dagenstring + ' days')
+    print('reentry after ' + hours_string + ' hours  = ' + days_string + ' days')
+
     print(" ")
-    print ('REENTRY AT:')
-    print(reentrydatestring + ' UTC  +-  ' + sigm_string)
-    print('lat: ' + latstring + '   lon: ' + lonstring)
+    print('REENTRY AT:')
+    print(reentry_date_string + ' UTC  +-  ' + sigma_string)
+
+    print('lat: ' + latitude_string + '   lon: ' + longitude_string)
+
 print(" ")
 print(" ")
-# -
 
 # Save intermediate data to a comma-delimited txt file if option was chosen earlier
 if outopt == 'selected':
@@ -476,19 +495,19 @@ file.write('\n')
 file.write('mass: ' + mass_string + ' kg\n')
 file.write('drag area: ' + area_string +' m^2\n')
 file.write('altitude limit: ' + altitude_limit_string  +' meter\n' + '\n')
-file.write('propagation start: ' + propstartstring + '\n')
-file.write('propagation end:   ' + propendstring + '\n')
-file.write('final altitude:    ' + altstring + '\n')
+file.write('propagation start: ' + propagation_start_string + '\n')
+file.write('propagation end:   ' + propagation_end_string + '\n')
+file.write('final altitude:    ' + altitude_string + '\n')
 file.write('\n')
-if (altid * 1e3) > altitude_limit:
+if (altitude * 1e3) > altitude_limit:
     file.write('OBJECT DID NOT REENTER IN THIS TIMESPAN\n')
 else:
-    file.write('reentry after ' + dagenstring + ' days\n')
+    file.write('reentry after ' + days_string + ' days\n')
     file.write('\n')
     file.write('REENTRY AT:\n')
-    file.write( reentrydatestring + ' UTC  +-  ' + sigm_string+'\n')
-    file.write('lat: ' + latstring + '\n')
-    file.write('lon: ' + lonstring + '\n')
+    file.write( reentry_date_string + ' UTC  +-  ' + sigma_string+'\n')
+    file.write('lat: ' + latitude_string + '\n')
+    file.write('lon: ' + longitude_string + '\n')
 
 # Close the file
 file.close()
@@ -535,7 +554,7 @@ cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
 cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
-ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
+ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentry_date_string[:16]} UTC +- {sigma_string})")
 # Add cities > 1M population
 ax.scatter(
     big_cities.geometry.x,
