@@ -11,7 +11,7 @@
 # # Import Statements
 # At the beginning of our example, we import all necessary modules.
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import math
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
-from narwhals.stable.v1 import Datetime
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import time_representation
