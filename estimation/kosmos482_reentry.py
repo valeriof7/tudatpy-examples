@@ -78,9 +78,6 @@ tle_reference_epoch = environment.Tle(tle_line1, tle_line2).epoch()
 # Load spice kernels
 spice.load_standard_kernels()
 
-# ## Here, we create a time scale converter object, as we will later need to convert utc times into tdb.
-# Tudat's default spice kernels are loaded
-
 # ## Define Object Info and Initialize SpaceTrackQuery
 #
 # In the following, we define the object info, the most important of which is the norad_id. This is used to query the spacetrack catalog via Tudatpy's SpaceTrackQuery wrapper function: SpaceTrackQuery.DownloadTle.single_norad_id, in order to automatically retrieve the TLE corresponding to the object based on its norad id. This function returs a dictionary corresponding to the Orbit Mean element Message (OMM) for that given object. This dictionary can them be manipulated to extract, for instance, the TLE and/or other relevant information, such as the TLE reference epoch (time to which the TLE refers to).
