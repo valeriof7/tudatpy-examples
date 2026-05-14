@@ -123,14 +123,9 @@ reference_area_radiation = 9.62
 drag_coefficient = 2.0 # drag coefficient that closely matches apulian sightings
 # CUT-OFF ALTITUDE FOR SIMULATION
 altitude_limit = 50.0e3  #meters  (standard 50 km = 50.0e3)
-# SET SIMULATION START EPOCH
-# THIS EQUALs THE TIME OF THE TLE EPOCH
-simulation_start_utc = DateTime.from_epoch(tle_reference_epoch).to_python_datetime()
-# SET  SIMULATION END EPOCH (cuts off run if altitude criterion not met before)
-simulation_end_utc = DateTime.from_epoch(tle_reference_epoch).to_python_datetime()+ timedelta(seconds = 86400*3) # one day after start
-
-float_observations_start_utc = time_representation.DateTime.from_python_datetime(simulation_start_utc).to_epoch()
-float_observations_end_utc = time_representation.DateTime.from_python_datetime(simulation_end_utc).to_epoch()
+# SET SIMULATION START and END EPOCH
+float_observations_start_utc = tle_reference_epoch
+float_observations_end_utc = tle_reference_epoch + 86400*3
 
 # Create time scale converter object
 time_scale_converter = time_representation.default_time_scale_converter( )
