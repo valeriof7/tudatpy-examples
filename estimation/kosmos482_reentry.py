@@ -5,7 +5,7 @@ This example demonstrates a complete **reentry analysis workflow** using Tudat�
 
 Kosmos 482 is exemplary because it allows us to showcase:
 
-- **Retrieving TLE data** from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**  
+- **Retrieving TLE data** from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**
 - **Validation of Reentry Prediction**, since the actual reentry occurred on **10 May 2025**
 
 """
@@ -16,7 +16,7 @@ At the beginning of our example, we import all necessary modules.
 """
 
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import math
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
@@ -29,7 +29,7 @@ from tudatpy.dynamics import environment_setup, environment, propagation_setup, 
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.data.spacetrack import SpaceTrackQuery
+from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
 from numpy import savetxt
 
@@ -59,14 +59,12 @@ if answer.upper() == 'Y':
     SpaceTrackQuery = SpaceTrackQuery()
 
     # OMM Dict
-    json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
+    json_dict = SpaceTrackQuery.get_tles_by_norad_ids(int(norad_id))
 
-    tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
+    tle_dict = OMMUtils.get_tles(json_dict)
     tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
 
     print(f'TLE: \n {tle_line1} \n {tle_line2}')
-    print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
 
     #---------------------------------------------------------------------------------------------------------------#
     # TLE (if you do not possess an account to Space-Track.org)
@@ -79,7 +77,8 @@ else:
             tle_line2: 2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319""")
     tle_line1 =  "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"
     tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
+
+tle_reference_epoch = environment.Tle(tle_line1, tle_line2).epoch()
 
 
 """
@@ -93,11 +92,6 @@ spice.load_standard_kernels()
 
 
 """
-## Here, we create a time scale converter object, as we will later need to convert utc times into tdb. 
-Tudat's default spice kernels are loaded
-"""
-
-"""
 ## Define Object Info and Initialize SpaceTrackQuery
 
 In the following, we define the object info, the most important of which is the norad_id. This is used to query the spacetrack catalog via Tudatpy's SpaceTrackQuery wrapper function: SpaceTrackQuery.DownloadTle.single_norad_id, in order to automatically retrieve the TLE corresponding to the object based on its norad id. This function returs a dictionary corresponding to the Orbit Mean element Message (OMM) for that given object. This dictionary can them be manipulated to extract, for instance, the TLE and/or other relevant information, such as the TLE reference epoch (time to which the TLE refers to).
@@ -107,59 +101,54 @@ In the following, we define the object info, the most important of which is the 
 """
 
 """
-## **Define Object Properties and Simulation Epochs**
+## Define Object Properties and Simulation Epochs
 
-We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.  
+We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.
 We also specify a **drag coefficient** and a **cut-off altitude** for the simulation, assumed to be **50 km**.
 
 The **simulation start UTC epoch** is defined as the **TLE reference epoch retrieved above**, and the simulation is run for **one year**, although it will automatically terminate whenever the altitude falls below the specified cut-off.
 
-> **NOTES**  
-> 1) Tudat’s propagator requires times to be provided as **floating-point Epochs**, hence we apply a conversion using the function: `{from\_python\_datetime}.  
+> **NOTES**
+> 1) Tudat’s propagator requires times to be provided as **floating-point Epochs**, hence we apply a conversion using the function: `{from\_python\_datetime}.
 > 2) Since the propagation is performed in **TDB** time scale, we also apply Tudat’s `{default\_time\_scale\_converter} to convert from UTC to TDB.
 
 """
 
 
 # object mass
-mass = 480 # kg
+mass = 4200# kg from https://planet4589.org/space/gcat/data/cat/satcat.html
 # DRAG AND SRP AREA, DRAG COEFFICIENT
-reference_area_drag = 0.7854 # Average projection area of the spacecraft in m^2
-reference_area_radiation = 0.7854  # Average projection area of object for SRP. keep 0.0 to ignore SRP
-drag_coefficient = 2.2 # drag coefficient
+reference_area_drag =9.62# Average projection area of the spacecraft in m^2 from Cylyndrical assumption from  https://planet4589.org/space/gcat/data/cat/satcat.html
+reference_area_radiation = 9.62
+drag_coefficient = 2.0 # drag coefficient that closely matches apulian sightings
 # CUT-OFF ALTITUDE FOR SIMULATION
 altitude_limit = 50.0e3  #meters  (standard 50 km = 50.0e3)
-# SET SIMULATION START EPOCH
-# THIS EQUALs THE TIME OF THE TLE EPOCH 
-simulation_start_utc = tle_reference_epoch
-# SET  SIMULATION END EPOCH (cuts off run if altitude criterion not met before)
-simulation_end_utc = tle_reference_epoch + timedelta(seconds = 86400*365) # one year after start 
-
-float_observations_start_utc = time_representation.DateTime.from_python_datetime(simulation_start_utc).to_epoch()
-float_observations_end_utc = time_representation.DateTime.from_python_datetime(simulation_end_utc).to_epoch()
+# SET SIMULATION START and END EPOCH
+float_observations_start_utc = tle_reference_epoch
+float_observations_end_utc = tle_reference_epoch + 86400*3
 
 # Create time scale converter object
 time_scale_converter = time_representation.default_time_scale_converter( )
 
 # start and end epoch of simulation conversion from UTC to tdb
 simulation_start_epoch_tdb = time_scale_converter.convert_time(
-  input_scale = time_representation.utc_scale,
-  output_scale = time_representation.tdb_scale,
-  input_value = float_observations_start_utc)
+    input_scale = time_representation.utc_scale,
+    output_scale = time_representation.tdb_scale,
+    input_value = float_observations_start_utc)
 simulation_end_epoch_tdb = time_scale_converter.convert_time(
-  input_scale = time_representation.utc_scale,
-  output_scale = time_representation.tdb_scale,
-  input_value = float_observations_end_utc)
+    input_scale = time_representation.utc_scale,
+    output_scale = time_representation.tdb_scale,
+    input_value = float_observations_end_utc)
 
 
 """
-## **Output Options**
+## Output Options
 
 To give users more control over the level of output detail, we define several **output modes**:
 
-- **`{full}** – selected data, `{J2K} states, and final results  
-- **`{selected}** – only the selected data and final results  
-- **`{J2K}** – only the propagated `{J2K} states and final results  
+- **`{full}** – selected data, `{J2K} states, and final results
+- **`{selected}** – only the selected data and final results
+- **`{J2K}** – only the propagated `{J2K} states and final results
 - **`{endonly}** – only the final results
 
 Additionally, if you would like to **save states at intermediate intervals**, you can set the flag `{interval\_set} to `'yes'`.
@@ -183,12 +172,12 @@ altitude_limit_string = str(altitude_limit)
 
 
 """
-## **Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)**
+## Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)
 
-We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.  
+We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.
 All bodies are set to rotate and translate using `get_default_body_settings`, which relies on the previously loaded **SPICE standard kernels**.
 
-To improve accuracy, we overwrite Earth’s default rotation model using `gcrs_to_itrs`, with the **IAU 2006** convention as reference.  
+To improve accuracy, we overwrite Earth’s default rotation model using `gcrs_to_itrs`, with the **IAU 2006** convention as reference.
 We also choose a more appropriate shape for Earth by modelling it as an **oblate spheroid** with mean radius of $\sim 6378$ km and flattening of $\sim 1/298.25$.
 
 Finally, we add **Kosmos 482** to the system of bodies and define:
@@ -211,8 +200,8 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_orientation)
 # Create Earth rotation model
 body_settings.get("Earth").rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
-                environment_setup.rotation_model.iau_2006,
-                global_frame_orientation )
+    environment_setup.rotation_model.iau_2006,
+    global_frame_orientation )
 body_settings.get("Earth").gravity_field_settings.associated_reference_frame = "ITRS"
 # create atmosphere settings and add to body settings of body "Earth"
 body_settings.get( "Earth" ).atmosphere_settings = environment_setup.atmosphere.nrlmsise00()
@@ -242,7 +231,7 @@ bodies.get("kosmos_482").mass = mass  #mass in kg, already set earlier!
 
 
 """
-## **Accelerations Acting on Kosmos 482**
+## Accelerations Acting on Kosmos 482
 
 In our simulation, **Kosmos 482** is treated as a re-entering object subjected to a number of relevant accelerations:
 
@@ -286,23 +275,23 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 
 """
-## Starting the Propagation 
+## Starting the Propagation
 
 Let's retrieve the initial state of the reentry kosmos_482 using Two-Line-Elements as let's set it as initial state for our propagation.
 """
 
 
 kosmos_482_tle = environment_setup.ephemeris.sgp4(
-  tle_line1, tle_line2
+    tle_line1, tle_line2
 )
-kosmos_482_ephemeris = environment_setup.create_body_ephemeris(kosmos_482_tle, "Kosmos-482")
+kosmos_482_ephemeris = environment_setup.create_body_ephemeris(kosmos_482_tle, "Kosmos 482")
 initial_state = kosmos_482_ephemeris.cartesian_state(simulation_start_epoch_tdb)
 
 
 """
-## **Define Dependent Variables to Save**
+## Define Dependent Variables to Save
 
-As is customary in Tudat, we specify the **dependent variables** we wish to save during propagation.  
+As is customary in Tudat, we specify the **dependent variables** we wish to save during propagation.
 For re-entry analysis, it is useful to monitor quantities such as:
 
 - **Altitude**
@@ -327,9 +316,9 @@ dependent_variables_to_save = [
 
 
 """
-## **Ending the Propagation (at Cut-off Altitude)**
+## Ending the Propagation (at Cut-off Altitude)
 
-Tudat allows the definition of **termination conditions** to stop a simulation once a specified criterion is met.  
+Tudat allows the definition of **termination conditions** to stop a simulation once a specified criterion is met.
 In this example, we terminate the propagation as soon as **Kosmos 482’s altitude drops below the prescribed cut-off altitude**.
 
 To ensure robustness, we additionally define a **secondary termination condition** at the **simulation end epoch** — in case, for any reason, the altitude threshold is not reached (even though we expect it to be).
@@ -350,7 +339,7 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
 
 
 """
-## **Define Integrator and Propagation Settings**
+## Define Integrator and Propagation Settings
 
 At this point, you’re likely familiar with these setup lines from many Tudat examples — here we specify the **integrator settings** (e.g., type and step size) and combine everything into the **propagator settings** object that will run our simulation.
 
@@ -385,9 +374,9 @@ if interval_set == 'yes':
 
 
 """
-## **Create Dynamics Simulator and Run the Propagation**
+## Create Dynamics Simulator and Run the Propagation
 
-We now create the **dynamics simulator object** and perform the propagation.  
+We now create the **dynamics simulator object** and perform the propagation.
 After propagation, we extract the results from the simulator’s `state_history` and `dependent_variable_history` attributes.
 
 """
@@ -407,9 +396,9 @@ dependent_variables_array = result2array(dependent_variables)
 
 
 """
-## **Write Results to Screen and to Text Files**
+## Write Results to Screen and to Text Files
 
-We are now ready to **write out and save the results** of our propagation.  
+We are now ready to **write out and save the results** of our propagation.
 
 Tudat estimates the **Reentry Window** for Kosmos 482 at approximately:
 
@@ -433,90 +422,101 @@ print('mass: ' + mass_string + ' kg')
 print('drag area: ' + area_string +' m^2')
 print('altitude limit: ' + altitude_limit_string  +' meter')
 print(' ')
+
 # parse reentry date and position in human-readable format
 # time and position
-eindtijd = lastline[0]
-altid = (lastline[1])/1000.0
-lat = math.degrees(lastline[2])
-lon = math.degrees(lastline[3])
-latstring =  "{:.2f}".format(lat)
-lonstring = "{:.2f}".format(lon)
-altstring = "{:.3f}".format(altid)
-# integration window duration to reentry
-duur = eindtijd - simulation_start_epoch_tdb
-uren = (duur/3600.0)
-urenstring = "{:.3f}".format(uren)
-dagen = uren/24.0
-dagenstring = "{:.3f}".format(dagen)
-# reentry time
-date_1 = datetime.datetime(2000,1,1,12,0,0)
-eindtijd = eindtijd - 64.184  # tdb to UTC
-eindtijd_uren = (eindtijd/3600.0)
-eindtijd_dagen = eindtijd_uren/24.0
-end_date = date_1 + datetime.timedelta(days=eindtijd_dagen)
-reentrydatestring = str(end_date)
-propstart = date_1 + datetime.timedelta(days=((float_observations_start_utc/3600.0)/24.0))
-propstartstring = str(propstart)
-propstartstring = propstartstring + " UTC"
-propendstring = str(end_date)
-propendstring = propendstring + " UTC"
-# get uncertainty estimate (25% of integration window duration)
-sigm = 0.25 * uren    # sigma defined as 25% of time between TLE epoch and reentry
-if sigm < 26.0:
-    formatted_number = "%.2f" % sigm
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' hr'
-if sigm < 1.0:
-    sigm_mins = 0.25 *(duur/60.0)
-    formatted_number = "%.2f" % sigm_mins
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' min'
-if sigm >= 26.0:
-    sigm_days = 0.25 * dagen
-    formatted_number = "%.2f" % sigm_days
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' days'
-# print data to screen
+end_time = lastline[0]
+altitude = (lastline[1]) / 1000.0
+latitude = math.degrees(lastline[2])
+longitude = math.degrees(lastline[3])
+
+latitude_string = "{:.2f}".format(latitude)
+longitude_string = "{:.2f}".format(longitude)
+altitude_string = "{:.3f}".format(altitude)
+
+# Integration window duration until reentry
+duration = end_time - simulation_start_epoch_tdb
+
+hours = duration / 3600.0
+hours_string = "{:.3f}".format(hours)
+
+days = hours / 24.0
+days_string = "{:.3f}".format(days)
+
+# Reentry time
+reference_date = datetime.datetime(2000, 1, 1, 12, 0, 0)
+
+end_time = end_time - 64.184  # TDB to UTC
+
+end_time_hours = end_time / 3600.0
+end_time_days = end_time_hours / 24.0
+
+end_date = reference_date + datetime.timedelta(days=end_time_days)
+
+reentry_date_string = str(end_date)
+
+propagation_start = reference_date + datetime.timedelta(
+    days=((float_observations_start_utc / 3600.0) / 24.0)
+)
+
+propagation_start_string = str(propagation_start) + " UTC"
+propagation_end_string = str(end_date) + " UTC"
+
+# Get uncertainty estimate (25% of integration window duration)
+sigma = 0.25 * hours  # sigma defined as 25% of time between TLE epoch and reentry
+
+if sigma < 26.0:
+    formatted_number = "%.2f" % sigma
+    sigma_string = str(formatted_number) + ' hr'
+
+if sigma < 1.0:
+    sigma_minutes = 0.25 * (duration / 60.0)
+    formatted_number = "%.2f" % sigma_minutes
+    sigma_string = str(formatted_number) + ' min'
+
+if sigma >= 26.0:
+    sigma_days = 0.25 * days
+    formatted_number = "%.2f" % sigma_days
+    sigma_string = str(formatted_number) + ' days'
+
+# Print data to screen
 print(' ')
-print('propagation start:  ' + propstartstring)
-print('propagation end:    ' + propendstring)
+print('propagation start:  ' + propagation_start_string)
+print('propagation end:    ' + propagation_end_string)
+
 print(" ")
-if (altid * 1e3) > altitude_limit:
+print(altitude)
+
+if (altitude * 1e3) > altitude_limit:
     print("OBJECT DID NOT REENTER WITHIN DEFINED TIMESPAN...")
 else:
-    print('final altitude ' + altstring + ' km')
+    print('final altitude ' + altitude_string + ' km')
+
     print(" ")
-    print('reentry after ' + urenstring + ' hours  = ' + dagenstring + ' days')
+    print('reentry after ' + hours_string + ' hours  = ' + days_string + ' days')
+
     print(" ")
-    print ('REENTRY AT:')
-    print(reentrydatestring + ' UTC  +-  ' + sigm_string)
-    print('lat: ' + latstring + '   lon: ' + lonstring)
+    print('REENTRY AT:')
+    print(reentry_date_string + ' UTC  +-  ' + sigma_string)
+
+    print('lat: ' + latitude_string + '   lon: ' + longitude_string)
+
 print(" ")
 print(" ")
-
-
 
 # Save intermediate data to a comma-delimited txt file if option was chosen earlier
 if outopt == 'selected':
     savetxt('variables_out' + filenamesuf + '.txt', dependent_variables_array, delimiter=',')
     savetxt('J2Kstate_out' + filenamesuf + '.txt', states_array, delimiter=',')
 
-
-
 if outopt == 'selected':
     savetxt('variables_out' + filenamesuf + '.txt', dependent_variables_array, delimiter=',')
-
-
 
 if outopt == 'J2K':
     savetxt('J2Kstate_out' + filenamesuf + '.txt', states_array, delimiter=',')
 
-
-
 # Save final data (reentry date and position) to a text file
 savetxt('reentrytime_out' + filenamesuf + '.txt', lastline, delimiter=',')
-
-
 
 # Re-open the file in append mode and append
 file = open('reentrytime_out' + filenamesuf + '.txt', 'a')
@@ -535,19 +535,19 @@ file.write('\n')
 file.write('mass: ' + mass_string + ' kg\n')
 file.write('drag area: ' + area_string +' m^2\n')
 file.write('altitude limit: ' + altitude_limit_string  +' meter\n' + '\n')
-file.write('propagation start: ' + propstartstring + '\n')
-file.write('propagation end:   ' + propendstring + '\n')
-file.write('final altitude:    ' + altstring + '\n')
+file.write('propagation start: ' + propagation_start_string + '\n')
+file.write('propagation end:   ' + propagation_end_string + '\n')
+file.write('final altitude:    ' + altitude_string + '\n')
 file.write('\n')
-if (altid * 1e3) > altitude_limit:
+if (altitude * 1e3) > altitude_limit:
     file.write('OBJECT DID NOT REENTER IN THIS TIMESPAN\n')
 else:
-    file.write('reentry after ' + dagenstring + ' days\n')
+    file.write('reentry after ' + days_string + ' days\n')
     file.write('\n')
     file.write('REENTRY AT:\n')
-    file.write( reentrydatestring + ' UTC  +-  ' + sigm_string+'\n')
-    file.write('lat: ' + latstring + '\n')
-    file.write('lon: ' + lonstring + '\n')
+    file.write( reentry_date_string + ' UTC  +-  ' + sigma_string+'\n')
+    file.write('lat: ' + latitude_string + '\n')
+    file.write('lon: ' + longitude_string + '\n')
 
 # Close the file
 file.close()
@@ -556,13 +556,13 @@ print(" ")
 
 
 """
-## **Plot Kosmos 482 Ground Track**
+## Plot Kosmos 482 Ground Track
 
-Using the **dependent variables** saved during propagation, we can plot the ground track of Kosmos 482.  
+Using the **dependent variables** saved during propagation, we can plot the ground track of Kosmos 482.
 
-To make the visualization more informative and visually appealing, we will use the **Cartopy** and **GeoPandas** libraries.  
+To make the visualization more informative and visually appealing, we will use the **Cartopy** and **GeoPandas** libraries.
 
-Additionally, we will read shapefiles (such as `ne_10m_populated_places.shp`, `ne_10m_populated_places.dbf`, and `ne_10m_populated_places.shx`) — which should be included in your repository — to display cities with populations exceeding one million on the map.  
+Additionally, we will read shapefiles (such as `ne_10m_populated_places.shp`, `ne_10m_populated_places.dbf`, and `ne_10m_populated_places.shx`) — which should be included in your repository — to display cities with populations exceeding one million on the map.
 
 Fortunately, our predictions indicate that Kosmos 482 will reenter over the ocean.
 
@@ -587,9 +587,8 @@ lc.set_array(times_since)
 
 # Satellite imagery tiler
 tiler = cimgt.QuadtreeTiles()  # Good for testing
-fig = plt.figure(figsize=(12, 5))
+fig = plt.figure(figsize=(12, 10))
 ax = plt.axes(projection=tiler.crs)
-#ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 ax.add_image(tiler, 4)
 # Add colored ground track
 ax.add_collection(lc)
@@ -597,16 +596,7 @@ cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
 cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
-ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
-# Add cities > 1M population
-ax.scatter(
-    big_cities.geometry.x,
-    big_cities.geometry.y,
-    color='red',
-    s=2,
-    transform=ccrs.PlateCarree(),
-    label='Cities > 1M'
-)
+ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentry_date_string[:16]} UTC +- {sigma_string})")
 # Add cities > 1M population
 ax.scatter(
     big_cities.geometry.x,
@@ -622,7 +612,7 @@ plt.show()
 
 
 """
-## **Plot Kosmos 482 Altitude evolution**
+## Plot Kosmos 482 Altitude evolution
 
 Using the **dependent variables** saved during propagation, we can plot the capsule's altitude over time.
 """
@@ -633,13 +623,12 @@ altitude = dependent_variables_array[:, 1]
 
 # Plot altitude vs. UTC
 plt.figure(figsize=(10, 5))
-plt.plot(utc_times, altitude/1000, label="Altitude") 
+plt.plot(utc_times, altitude/1000, label="Altitude")
 plt.xlabel("UTC Time", fontsize=12)
 plt.ylabel("Altitude [km]", fontsize=12)
 plt.title("Satellite Altitude over Time", fontsize=14)
 plt.grid(True)
 plt.legend()
-plt.tight_layout()
 plt.show()
 
 
