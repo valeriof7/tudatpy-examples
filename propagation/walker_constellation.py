@@ -21,21 +21,13 @@ Total: 36 satellites propagated over 24 hours.
 - 3D visualization of orbits, ground tracks, and in-plane spacing
 - The osculating-vs-mean-element drift that motivates stationkeeping in real constellations
 
-**What this example does NOT include (out of scope):**
-- Atmospheric drag (relevant at 550 km — requires per-satellite aerodynamic coefficients and atmosphere model)
-- Solar radiation pressure (minor effect, but real)
-- Inter-satellite-link geometry / visibility analysis
-- Full ground-coverage analysis (visibility windows from ground points)
-- Brouwer-inverse mean-to-osculating initialization for exact Walker preservation
-- Maneuver planning / stationkeeping burns
-
-These can be added incrementally on top of the same Walker generator.
 """
 
 """
 ## Import statements
 
-Standard scientific Python plus the modern `tudatpy` API surface, and SPICE kernels for the celestial-body ephemerides.
+First, let's import the needed python and tudat libraries, and let's load the standard SPICE kernels.
+
 """
 
 
@@ -64,9 +56,14 @@ spice.load_standard_kernels()
 """
 ## Walker constellation parameters
 
-Two shells defined as plain dictionaries. Each shell is itself a Walker constellation `T/P/F`. We use Earth's mean radius from SPICE so the shell altitudes resolve to physically correct semi-major axes.
+Two shells defined as plain dictionaries. Each shell is itself a **Walker delta** constellation `T/P/F`, where:
 
-For the meaning of `T`, `P`, `F` and how they translate into per-satellite Keplerian elements, see the reference doc §2 (Walker math).
+- `T` is the total number of satellites in the shell,
+- `P` is the number of orbital planes (so `T/P` satellites per plane),
+- `F ∈ [0, P-1]` is the **phasing factor** (the relative angular offset between adjacent planes' satellites at the ascending node).
+
+See the [Walker constellation summary on Wikipedia](https://en.wikipedia.org/wiki/Satellite_constellation#Walker_constellations) for an accessible derivation. We use Earth's mean radius from SPICE so the shell altitudes resolve to physically correct semi-major axes.
+
 """
 
 
@@ -105,9 +102,8 @@ print(f"Total satellites across all shells: {total_sats}")
 """
 ## Walker constellation generator
 
-This is the only piece of "new logic" in the example — everything downstream is pure tudatpy API plumbing. The function takes a Walker `T/P/F` specification and a shared orbital geometry (semi-major axis, eccentricity, inclination), and emits one Keplerian-element set per satellite.
+Let's add a utility function, named `generate_walker_kepler_elements`, that takes a Walker `T/P/F` specification and a shared orbital geometry (semi-major axis, eccentricity, inclination), and emits one Keplerian-element set per satellite. The formulas are from Walker (1984) — see the [Wikipedia summary](https://en.wikipedia.org/wiki/Satellite_constellation#Walker_constellations) for an accessible derivation.
 
-**The formulas you need are in reference doc §2 (Walker math).** Implement the function below before continuing.
 """
 
 
@@ -196,7 +192,8 @@ print(f"First sat: {satellites[0]['name']} → kep = {satellites[0]['kep']}")
 """
 ## Create environment and bodies
 
-Standard tudatpy environment setup: Sun + Earth + Moon from SPICE defaults, plus one empty body per satellite. The empty-body pattern is the standard way to add custom spacecraft — mass and any other properties are set per-satellite after creation.
+We will soon propagate the satellites we created under the gravitational influence of Sun, Earth and Moon. Let's then create the environment and bodies accordingly: Sun + Earth + Moon from SPICE defaults, plus one empty body per satellite. The empty-body pattern is the standard way to add custom spacecraft — mass and any other properties are set per-satellite after creation. For background see the [Tudat user guide on environment setup](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html).
+
 """
 
 
@@ -231,7 +228,8 @@ For LEO at ~550 km, the physically important forces are:
 - **Earth gravity** — main term. We use a spherical-harmonic expansion to degree/order 8 (`spherical_harmonic_gravity(8, 8)`), which captures J2 (Earth's oblateness, dominant non-central term) plus higher-order zonal and tesseral terms.
 - **Sun and Moon point-mass gravity** — third-body perturbations, small but non-trivial over a day.
 
-Atmospheric drag is **not** included in this example — see the introduction for the rationale. The same acceleration set applies to every satellite (no per-satellite differentiation in this scope).
+To keep things simple, atmospheric drag is **not** included in this example. The same acceleration set applies to every satellite (no per-satellite differentiation in this scope). See the [tudatpy acceleration API](https://py.api.tudat.space/en/latest/acceleration.html) for the full menu of acceleration settings.
+
 """
 
 
@@ -262,7 +260,8 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 Tudat propagates in Cartesian inertial coordinates (J2000), so the Keplerian sets must be converted. The result is a single flat vector of length `6 * N` where the first 6 entries are sat 0, the next 6 are sat 1, and so on — same order as `bodies_to_propagate`.
 
-**Implement this conversion before continuing.** Reference doc §4 (Kepler → Cartesian) and §9 (tudatpy API) cover both the math and the function signature.
+Cartesian conversion uses tudatpy's [`element_conversion.keplerian_to_cartesian_elementwise`](https://py.api.tudat.space/en/latest/element_conversion.html#tudatpy.astro.element_conversion.keplerian_to_cartesian_elementwise).
+
 """
 
 
@@ -304,7 +303,7 @@ dependent_variables_to_save = [
 """
 ## Termination and integrator settings
 
-Propagate over 24 hours (a full diurnal cycle for ground-track visualization). Use a variable-step Runge-Kutta-Fehlberg 7(8) integrator — same choice as `separation_satellites_diff_drag.py`, and a sensible default for LEO propagation.
+Propagate over 24 hours (a full diurnal cycle for ground-track visualization). Use a variable-step Runge-Kutta-Fehlberg 7(8) integrator — a sensible default for LEO propagation.
 """
 
 
@@ -364,7 +363,8 @@ print(f"State array shape: {state_array.shape}")
 
 Render all satellite orbits in inertial space, colored by shell (Shell A blue, Shell B red), with Earth as a reference sphere.
 
-See reference doc §3 (coordinate frames — these positions are in J2000 inertial) and §7 (3D plot patterns).
+These positions are in J2000 inertial — see the [Tudat user guide on coordinate frames](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/transformation/frames.html) for the reference frame definitions.
+
 """
 
 
@@ -402,7 +402,18 @@ ax.set_xlabel("x [km]")
 ax.set_ylabel("y [km]")
 ax.set_zlabel("z [km]")
 ax.set_title("Walker constellation — orbits in J2000 inertial frame")
-ax.set_box_aspect([1, 1, 1])  # equal aspect → Earth renders as a sphere
+
+# Enforce equal axis limits so the Earth actually renders as a sphere — matplotlib
+# auto-scales each 3D axis independently otherwise, which squashes the globe.
+all_coords = np.concatenate([
+    state_array[:, 6 * i + j] / 1000.0
+    for i in range(len(satellites)) for j in range(3)
+])
+lim = max(np.max(np.abs(all_coords)), earth_r_km * 1.1)
+ax.set_xlim(-lim, lim)
+ax.set_ylim(-lim, lim)
+ax.set_zlim(-lim, lim)
+ax.set_box_aspect([1, 1, 1])
 
 
 """
@@ -410,7 +421,9 @@ ax.set_box_aspect([1, 1, 1])  # equal aspect → Earth renders as a sphere
 
 Project sub-satellite points (the point on Earth's surface directly below each satellite) onto a 2D lat/lon map. This visualization makes the multi-shell architecture obvious: Shell A's 53°-inclined orbits trace mid-latitude bands, while Shell B's 97.6° polar orbits cover all latitudes including the poles.
 
-**Important:** ground tracks need positions in the Earth-fixed (ECEF) frame, not J2000 inertial — the Earth is rotating beneath the orbit. See reference doc §3 (coordinate frames) and §7 (ground tracks math).
+**Important:** ground tracks need positions in the Earth-fixed (ECEF) frame, not J2000 inertial — the Earth is rotating beneath the orbit. The rotation comes from Tudat's Earth rotation model via
+`bodies.get("Earth").rotation_model.inertial_to_body_fixed_rotation(epoch)`.
+
 """
 
 
@@ -433,11 +446,24 @@ for t_idx, epoch in enumerate(epochs):
         lats[t_idx, i] = np.rad2deg(np.arcsin(r_ecef[2] / r_norm))
         lons[t_idx, i] = np.rad2deg(np.arctan2(r_ecef[1], r_ecef[0]))
 
-# Scatter plot (scatter avoids the ugly ±180° wraparound lines that plot() would draw)
-fig, ax = plt.subplots(figsize=(14, 7))
+# Plot two satellites per shell as dashed lines — keeps the figure readable
+# while preserving each shell's characteristic ground-track shape. Indices
+# 0, 1 are in Shell A (24 sats); 34, 35 are in Shell B (last two).
 shell_color = {"A": "tab:blue", "B": "tab:red"}
-for i, sat in enumerate(satellites):
-    ax.scatter(lons[:, i], lats[:, i], c=shell_color[sat["shell"]], s=1.0, alpha=0.5)
+
+def _mask_wrap(arr):
+    out = arr.astype(float).copy()
+    jumps = np.abs(np.diff(out, axis=0)) > 180.0
+    out[1:][jumps] = np.nan
+    return out
+
+lons_plot = _mask_wrap(lons)
+
+fig, ax = plt.subplots(figsize=(14, 7))
+for i in (0, 1, 34, 35):
+    ax.plot(lons_plot[:, i], lats[:, i],
+            c=shell_color[satellites[i]["shell"]],
+            linestyle="--", alpha=0.6, linewidth=0.8)
 
 ax.set_xlim(-180, 180)
 ax.set_ylim(-90, 90)
@@ -469,23 +495,21 @@ Plot the angular separation between adjacent satellites in Shell A, plane 0. Ini
 
 We initialised all 8 satellites with **identical osculating** Keplerian elements (same `a`, `e`, `i`, `Ω`, `ω`) but different `ν`. Tudat then faithfully integrates Newton + J2 in Cartesian coordinates.
 
-And since the **oscillatory** elements differ from the **average** (Brauer-Lyddan) elements by short-period oscillations, the amplitude of which depends on the instantaneous phase of the satellite, even though all eight satellites have identical oscillatory axes of `a = 6921 km`, their *average* semi-major axes differ slightly by an amount dependent on phase:
+And since the **osculating** elements differ from the **mean** (Brouwer-Lyddane) elements by short-period oscillations, the amplitude of which depends on the instantaneous phase of the satellite, even though all eight satellites have identical osculating semi-major axes of `a = 6921 km`, their *mean* semi-major axes differ slightly by an amount dependent on phase:
 
 $$
 a_{\text{mean}}(\nu) \;=\; a_{\text{osc}} \;-\; \delta a_{J_2}(\nu, \omega, i)
 $$
 
-Different mean `a` ⇒ different mean motion ⇒ slow secular drift in along-track position between satellites. Order-of-magnitude estimate:
+Different mean `a` ⇒ different mean motion ⇒ slow secular drift in along-track position between satellites. The order-of-magnitude derivation:
 
-- $\delta a / a \sim 10^{-3}$ for $J_2$ at LEO altitudes
-- $\delta n / n \sim \tfrac{3}{2}(\delta a / a) \sim 10^{-3}$
-- Over 15 orbits (24 h at 95-min period): cumulative phase drift $\sim 15 \times 10^{-3} \times 360° \;\approx\; 5\text{–}7°$
+- The short-period $J_2$ contribution to the semi-major axis scales as $\delta a / a \sim J_2 (R_\oplus / a)^2$. For LEO at $a \approx R_\oplus + 550\,\text{km}$ with $J_2 \approx 1.083 \times 10^{-3}$, this gives $\delta a / a \sim 10^{-3}$ (the leading factor swallows the $(R_\oplus/a)^2 \approx 0.85$).
+- From Kepler's third law $n \propto a^{-3/2}$, hence $\delta n / n = -\tfrac{3}{2}\,\delta a / a \sim 10^{-3}$.
+- Over 15 orbits (24 h at a ~95-min period), the cumulative along-track phase difference between two sats whose mean $a$ differ by this amount is $\sim 15 \times 10^{-3} \times 360° \approx 5\text{--}7°$ — which is consistent with what we see in the plot.
 
 The **alternating two-bundle pattern** comes from the 2-per-orbit phase dependence of $\delta a_{J_2}(\nu)$: satellites 180° apart in true anomaly see identical short-period offsets, producing the 4-fold pair-index symmetry visible in the plot.
 
 This is the dominant cause: replacing the full `spherical_harmonic_gravity(8, 8)` + Sun + Moon set-up with **only J2** (no tesserals, no 3rd-body) gives essentially the same drift (within 0.2°). Higher-order zonals, tesserals, and 3rd-body perturbations contribute small additional effects on top of the J2-driven mean-element separation. 
-
-It can be viewed by iterating over `point_mass_gravity()` -> `spherical_harmonic_gravity(2,0)` -> `spherical_harmonic_gravity(2,0)` -> `spherical_harmonic_gravity(2,0) + Sun + Moon` -> `spherical_harmonic_gravity(8,8) + Sun + Moon` configurations; the first transition has the biggest impact: 0° -> 4.14419° -> 4.13483° -> 4.11616°.
 
 ### How to fix
 
@@ -572,13 +596,14 @@ plt.show()
 """
 ## Where to go from here
 
-This example deliberately keeps scope tight. Natural extensions, each suitable for a follow-up PR:
+This example deliberately keeps scope tight, so that the focus stays on the constellation-setup pattern itself. There are several natural directions in which to extend it, each substantial enough to make a good follow-up notebook on its own.
 
-- **Drag and atmosphere modeling** — add aerodynamic coefficients and an atmosphere model per satellite; observe orbital decay over longer time spans.
-- **Solar radiation pressure** — small but real for LEO; needs per-satellite SRP coefficient.
-- **Inter-satellite link geometry** — compute pairwise visibility (line of sight, optionally accounting for Earth occultation) over time. This is the natural next step toward a constellation-tasking study.
-- **Ground-coverage analysis** — for a set of ground points, compute satellite visibility windows. Combine with multi-shell to show coverage gain from polar shells.
-- **Maneuver planning** — periodic stationkeeping burns to compensate drag, or constellation reconfiguration.
+The first is **drag and atmosphere modelling**: at 550 km the atmosphere still has a measurable effect on the orbit, and adding per-satellite aerodynamic coefficients together with an atmosphere model lets us watch the constellation gradually decay — and lets us reason about the stationkeeping budget required to maintain it. **Solar radiation pressure** sits in the same family: smaller in magnitude, but real, and the per-satellite SRP-coefficient pattern is the same.
+
+A second direction is **inter-satellite-link geometry**: compute pairwise line-of-sight visibility (optionally accounting for Earth occultation) over time. That is the natural step toward any constellation-tasking or relay study. Close to that is **ground-coverage analysis**: for a chosen set of ground points, compute satellite visibility windows and aggregate them across shells to quantify the coverage gain of adding a polar shell.
+
+Finally, the J2-driven drift discussed above motivates **maneuver planning**: periodic stationkeeping burns to compensate the secular along-track separation, or coordinated burns for constellation reconfiguration. Both fit on top of the same Walker generator presented here.
+
 """
 
 plt.show()
